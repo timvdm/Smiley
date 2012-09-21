@@ -1,0 +1,25 @@
+Dependencies
+------------
+
+To build the example and test executables, CMake is required.
+
+* CMake: http://www.cmake.org
+
+Installing
+----------
+
+Using CMake:
+
+  $ tar zxvf smiley-x.y.tar.gz
+  $ cd smiley-x.y
+  $ mkdir build
+  $ cd build
+  $ cmake ..
+  $ make
+  $ make test           [optional]
+  $ make install
+
+Without CMake:
+
+  Copy the smiley.h header file to a location that is in the include path for
+  the application you are building.
