@@ -31,6 +31,7 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <sstream>
 
 //#include <cassert>
 #define DEBUG 0
@@ -371,6 +372,9 @@ namespace Smiley {
    *
    *  
    * @section smarts_grammar SMARTS Grammar
+   * The SMARTS grammar is very similar to the SMILES grammar. The definition for
+   * bracket_atom is different and the bond definition is replaced by
+   * bond_expression.
    *
    * @code
    * PRIMITIVES
@@ -434,7 +438,7 @@ namespace Smiley {
    *
    *   atomic_number ::= '#' NUMBER
    *
-   *   degree ::= 'D' | 'D' DIGIT
+   *   degree ::= 'D' | 'D' NUMBER
    *
    *   valence ::= 'v' | 'v' NUMBER
    *
@@ -602,6 +606,29 @@ namespace Smiley {
      * Example: "C%123CC%123", "C%CC%"
      */
     InvalidRingBondNumber = 11,
+    //////////////////
+    // SMARTS
+    //////////////////
+    /**
+     * Example: "[&C]"
+     */
+    BinaryOpWithoutLeftOperand = 12,
+    /**
+     * Example: "[C&]"
+     */
+    BinaryOpWithoutRightOperand = 13,
+    /**
+     * Example: "[C!]"
+     */
+    UnaryOpWithoutArgument = 14,
+    /**
+     * Example: "[Q]"
+     */
+    InvalidAtomPrimitive = 15,
+    /**
+     * Example: "C^C"
+     */
+    InvalidBondPrimitive = 16,
     ////////////////////////////////////////
     //
     // SemanticsError
@@ -610,29 +637,32 @@ namespace Smiley {
     /**
      * Example: "[HH1]"
      */
-    HydrogenHydrogenCount = 16,
+    HydrogenHydrogenCount = 32,
     /**
      * Example: "C1CC"
      */
-    UnmatchedRingBond = 32,
+    UnmatchedRingBond = 64,
     /**
      * Example: "C-1CCCC=1"
      */
-    ConflictingRingBonds = 64,
+    ConflictingRingBonds = 128,
     /**
      * Example: "C12CCCCC12", "C11"
      */
-    InvalidRingBond = 128,
+    InvalidRingBond = 256,
     /**
      * Example: "C[C@H](F)(Cl)(Br)I", "O[C@]"
      */
-    InvalidChiralValence = 256,
+    InvalidChiralValence = 512,
     /**
      * Example: "N[C@H2](F)I"
      */
-    InvalidChiralHydrogenCount = 512
+    InvalidChiralHydrogenCount = 1024
   };
 
+  /**
+   * Exception class.
+   */
   class Exception
   {
     public:
@@ -703,12 +733,188 @@ namespace Smiley {
       std::size_t m_length;
   };
 
+  /**
+   * Value for implicit hydrogen in chiral nbrs.
+   */
+  inline int implicitHydrogen()
+  {
+    return std::numeric_limits<int>::max();
+  }
+
+  enum SmartsLogicalOpType
+  {
+    OP_Not = 1,
+    OP_AndHi = 2,
+    OP_AndLo = 4,
+    OP_And = OP_AndHi | OP_AndLo, // 6
+    OP_Or = 7
+  };
+
+  enum SmartsAtomExprType
+  {
+    AE_True = 8,
+    AE_False,
+    AE_Aromatic,
+    AE_Aliphatic,
+    AE_Cyclic,
+    AE_Acyclic,
+    AE_Isotope,
+    AE_AtomicNumber,
+    AE_AromaticElement,
+    AE_AliphaticElement,
+    AE_Degree,
+    AE_Valence,
+    AE_Connectivity,
+    AE_TotalH,
+    AE_ImplicitH,
+    AE_RingMembership,
+    AE_RingSize,
+    AE_RingConnectivity,
+    AE_Charge,
+    AE_Chirality,
+    AE_AtomClass
+  };
+
+  enum SmartsBondExprType
+  {
+    BE_True = AE_AtomClass + 1,
+    BE_False,
+    BE_Single,
+    BE_Double,
+    BE_Triple,
+    BE_Quadriple,
+    BE_Aromatic,
+    BE_Up,
+    BE_Down,
+    BE_Ring,
+    BE_Any = BE_True
+  };
+
+  struct SmartsAtomExpr
+  {
+    SmartsAtomExpr(int typ) : type(typ) {}
+    int type;
+    union {
+      struct {
+        int value;
+      } leaf;
+      struct {
+        void *recursive;
+      } recursive;
+      struct {
+        SmartsAtomExpr *arg;
+      } unary;
+      struct {
+        SmartsAtomExpr *lft;
+        SmartsAtomExpr *rgt;
+      } binary;
+    };
+  };
+
+  struct SmartsBondExpr
+  {
+    SmartsBondExpr(int typ) : type(typ) {}
+    int type;
+    struct {
+      SmartsBondExpr *arg;
+    } unary;
+    struct {
+      SmartsBondExpr *lft;
+      SmartsBondExpr *rgt;
+    } binary;
+  };
+
+  struct SmartsAtom
+  {
+    SmartsAtom() : expr(0), atomClass(0), chiral(0) {}
+    SmartsAtom(SmartsAtomExpr *expr_, int ac, bool chrl)
+        : expr(expr_), atomClass(ac), chiral(chrl) {}
+    SmartsAtomExpr *expr;
+    int atomClass;
+    bool chiral;
+  };
+
+  struct SmartsBond
+  {
+    SmartsBond() : source(0), target(0), grow(false) {}
+    SmartsBond(int src, int trg, bool grw = false)
+        : source(src), target(trg), grow(grw) {}
+    SmartsBondExpr *expr;
+    int source;
+    int target;
+    bool grow;
+  };
+
+  struct Smarts
+  {
+    Smarts() : chiral(false) {}
+    std::vector<SmartsAtom> atoms;
+    std::vector<SmartsBond> bonds;
+    bool chiral;
+  };
+
+  /**
+   * Base class for Callback function objects.
+   */
   struct CallbackBase
   {
+    //@name SMILES/SMARTS
+    //@{
+    /**
+     * Prepare the callback functor for a new SMILES/SMARTS. This method is
+     * always invoked at the start of parsing before any of the other methods.
+     */
     void clear() {}
-    void addAtom(int element, bool aromatic, int isotope, int hCount, int charge, int atomClass) {}
-    void addBond(int source, int target, int order, bool isUp, bool isDown) {}
+    /**
+     * Set the chirality for an atom. This method is invoked when the entire
+     * SMILES/SMARTS is parsed.
+     */
     void setChiral(int index, Chirality chirality, const std::vector<int> &chiralNbrs) {}
+    //@}
+    //@name SMILES
+    /**
+     * Invoked when an atom is completly parsed.
+     */
+    void addAtom(int element, bool aromatic, int isotope, int hCount, int charge, int atomClass) {}
+    /**
+     * Invoked once both bon atom are added using addAtom().
+     */
+    void addBond(int source, int target, int order, bool isUp, bool isDown) {}
+    //@}
+    //@name SMARTS
+    //@{
+    /**
+     * Invoked when a unary or binary logical operator is parsed
+     * (i.e. '&', ';' or ','). This method is also invoked for implicit AND.
+     */
+    void operation(int type) {}
+    /**
+     * Invoked when an unbracketed atom (i.e. organic subset) is parsed.
+     */
+    void addOrganicSubsetAtom(int element, bool aromatic) {}
+    /**
+     * Invoked when an atom primitive is parsed.
+     */
+    void atomPrimitive(int type, int value) {}
+    /**
+     * Invoked when a bond primitive is parsed. This method is also invoked for
+     * implicit bonds.
+     */
+    void bondPrimitive(int type) {}
+    /**
+     * Invoked when a branch ends and the next bond should start from a
+     * previously parsed atom expression with specified @p index.
+     */
+    void setPrevious(int index) {}
+    /**
+     * Invoked when a new ring bond number is parsed.
+     */
+    void startRingBond(int number) {}
+    /**
+     * Invoked when a prviously found ring bond number is parsed to add the bond.
+     */
+    void endRingBond(int number, int index) {}
+    //@}
   };
 
   /**
@@ -723,6 +929,7 @@ namespace Smiley {
      */
     void clear()
     {
+      str.clear();
     }
 
     /**
@@ -758,19 +965,187 @@ namespace Smiley {
      * The setChiral() method is invoked at the end of parsing for each atom
      * that has a chirality specified.
      */
-    void setChiral(int index, Chirality chirality, const std::vector<int> &chiralNbrs)
+    void setChiral(int index, Chirality chirality, const std::vector<int> &nbrs)
     {
+      std::cout << "setChiral:" << std::endl
+                << "    index: " << index << std::endl
+                << "    chirality: " << chirality << std::endl
+                << "    nbrs: ";
+      for (std::size_t i = 0; i < nbrs.size(); ++i)
+        std::cout << nbrs[i] << " ";
+      std::cout << std::endl;
     }
+
+    void operation(int type)
+    {
+      switch (type) {
+        case OP_Not:
+          str += "!";
+          break;
+        case OP_AndHi:
+          str += "&";
+          break;
+        case OP_AndLo:
+          str += ";";
+          break;
+        case OP_Or:
+          str += ",";
+          break;
+      }
+      std::cout << "operation: " << str[str.size() - 1] << std::endl;
+    }
+
+    void addOrganicSubsetAtom(int element, bool aromatic)
+    {
+      std::size_t pos = str.size();
+      if (element == 0)
+        str+= "*";
+      else if (aromatic)
+        str += "<a" + number2string(element) + ">";
+      else
+        str += "<A" + number2string(element) + ">";
+      std::cout << "addOrganicSubsetAtom: " << str.substr(pos) << std::endl;
+    }
+
+    std::string number2string(int value)
+    { 
+      std::stringstream ss;
+      ss << value;
+      return ss.str();
+    }
+
+    void atomPrimitive(int type, int value)
+    {
+      std::size_t pos = str.size();
+      switch (type) {
+        case AE_True:
+          str += "*";
+          break;
+        case AE_False:
+          str += "!*";
+          break;
+        case AE_Aromatic:
+          str += "a";
+          break;
+        case AE_Aliphatic:
+          str += "A";
+          break;
+        case AE_Cyclic:
+          str += "R";
+          break;
+        case AE_Acyclic:
+          str += "R0";
+          break;
+        case AE_Isotope:
+          str += number2string(value);
+          break;
+        case AE_AtomicNumber:
+          str += "#" + number2string(value);
+          break;
+        case AE_AromaticElement:
+          str += "<a" + number2string(value) + ">";
+          break;
+        case AE_AliphaticElement:
+          str += "<A" + number2string(value) + ">";
+          break;
+        case AE_Degree:
+          str += "D" + number2string(value);
+          break;
+        case AE_Valence:
+          str += "v" + number2string(value);
+          break;
+        case AE_Connectivity:
+          str += "X" + number2string(value);
+          break;
+        case AE_TotalH:
+          str += "H" + number2string(value);
+          break;
+        case AE_ImplicitH:
+          str += "h" + number2string(value);
+          break;
+        case AE_RingMembership:
+          str += "R" + number2string(value);
+          break;
+        case AE_RingSize:
+          str += "r" + number2string(value);
+          break;
+        case AE_RingConnectivity:
+          str += "x" + number2string(value);
+          break;
+        case AE_Charge:
+          if (value > 0)
+            str += "+";
+          str += number2string(value);
+          break;
+        case AE_Chirality:
+          str += "@" + number2string(value);
+          break;
+        case AE_AtomClass:
+          str += ":" + number2string(value);
+          break;
+        default:
+          return;
+      }
+      std::cout << "atomPrimitive: " << str.substr(pos) << std::endl;
+    }
+
+    void bondPrimitive(int type)
+    {
+      switch (type) {
+        case BE_Single:
+          str += "-";
+          break;
+        case BE_Double:
+          str += "=";
+          break;
+        case BE_Triple:
+          str += "#";
+          break;
+        case BE_Quadriple:
+          str += "$";
+          break;
+        case BE_Aromatic:
+          str += ":";
+          break;
+        case BE_Up:
+          str += "/";
+          break;
+        case BE_Down:
+          str += "\\";
+          break;
+        case BE_Any:
+          str += "~";
+          break;
+        case BE_Ring:
+          str += "@";
+          break;
+        default:
+          return;
+      }
+      std::cout << "bondPrimitive: " << str[str.size() - 1] << std::endl;
+    }
+
+    void setPrevious(int index)
+    {
+      str += number2string(index);
+      std::cout << "setPrevious: " << index << std::endl;
+    }
+
+    void startRingBond(int number)
+    {
+      str += number2string(number);
+      std::cout << "startRingBond: " << number << std::endl;
+    }
+
+    void startRingBond(int number, int index)
+    {
+      str += number2string(number);
+      std::cout << "startRingBond: " << number << std::endl
+                << "    index: " << index << std::endl;
+    }
+
+    std::string str;
   };
-
-  /**
-   * Value for implicit hydrogen in chiral nbrs.
-   */
-  inline int implicitHydrogen()
-  {
-    return std::numeric_limits<int>::max();
-  }
-
 
   /**
    * @class Parser smiley.h <smiley.h>
@@ -974,7 +1349,10 @@ namespace Smiley {
           throw Exception(Exception::SemanticsError, HydrogenHydrogenCount,
               "Hydrogen atoms can not have a hydrogen count", 0, 0);
 
-        m_callback.addAtom(element, aromatic, isotope, hCount, charge, atomClass);
+        if (m_mode == SmilesMode)
+          m_callback.addAtom(element, aromatic, isotope, hCount, charge, atomClass);
+        else
+          m_callback.addOrganicSubsetAtom(element, aromatic);
 
         if (m_prev != -1)
           addBond(m_prev, m_index, m_bondOrder, m_isUp, m_isDown);
@@ -1021,8 +1399,10 @@ namespace Smiley {
        * element_symbols ::= 'H' | 'He' | 'Li' | ... | 'No' | 'Lr'
        * aromatic_symbols ::= 'c' | 'n' | 'o' | 'p' | 's' | 'se' | 'as'
        * @endcode
+       *
+       * @return std::pair with element in first and aromatic in second.
        */
-      void parseSymbol()
+      std::pair<int, bool> parseSymbol(bool ignoreHydrogen = false)
       {
         switch (m_str[m_pos]) {
           case 'H':
@@ -1036,7 +1416,7 @@ namespace Smiley {
               m_element = Hs;
             else if (checkNextChar('o'))
               m_element = Ho;
-            else
+            else if (!ignoreHydrogen)
               m_element = H;
             break;
           case 'L':
@@ -1321,13 +1701,24 @@ namespace Smiley {
               m_aromatic = true;          
             }
             break;
+          case '*':
+            m_element = 0;
+            break;
         }
 
-        if (!m_element && m_str[m_pos] != '*')
-          throw Exception(Exception::SyntaxError, NoSymbolInBracketAtom,
-              "Bracket atom expression does not contain element symbol", m_pos, 1);
-        else
+        int elem = m_element;
+        bool arom = m_aromatic;
+        if (m_element != -1)
           ++m_pos;
+        else if (m_mode == SmilesMode)
+            throw Exception(Exception::SyntaxError, NoSymbolInBracketAtom,
+                "Bracket atom expression does not contain element symbol", m_pos, 1);
+        else if (m_mode == SmartsMode) {
+          m_element = -1;
+          m_aromatic = false;
+        }
+
+        return std::make_pair(elem, arom);
       }
 
       /**
@@ -1540,6 +1931,328 @@ namespace Smiley {
               "No atom class, expected number", m_pos + 1, 1);
       }
 
+      bool parseCharDigit(char chr, int type, int defaultValue, int &parsedOp,
+          bool firstPrimitive)
+      {
+        if (DEBUG)
+          std::cout << "parseCharDigit(" << m_str.substr(m_pos) << ")" << std::endl;
+
+        if (m_str[m_pos] != chr)
+          return false;
+        ++m_pos;
+        if (std::isdigit(m_str[m_pos])) {
+          defaultValue = m_str[m_pos] - '0';
+          ++m_pos;
+        }
+        processImplicitAnd(parsedOp, firstPrimitive);
+        m_callback.atomPrimitive(type, defaultValue);
+        return true;
+      }
+
+      bool parseCharNumber(char chr, int type, int &parsedOp,
+          bool firstPrimitive, bool noDefault = false)
+      {
+        if (DEBUG)
+          std::cout << "parseCharNumber(" << m_str.substr(m_pos) << ")" << std::endl;
+
+        if (m_str[m_pos] != chr)
+          return false;
+
+        // check for element symbols
+        if (chr == 'D')
+          switch (m_str[m_pos + 1]) {
+            case 'b':
+            case 's':
+            case 'y':
+              return false;
+            default:
+              break;
+          }
+        if (chr == 'H')
+          switch (m_str[m_pos + 1]) {
+            case 'e':
+            case 'f':
+            case 'g':
+            case 'o':
+            case 's':
+              return false;
+            default:
+              break;
+          }
+        if (chr == 'X' && m_str[m_pos + 1] == 'e')
+          return false;
+
+        //++m_pos;
+        bool found_number = false;
+        // parse NUMBER
+        int value = 0;
+        while (std::isdigit(m_str[m_pos + 1])) {
+          value *= 10;
+          value += m_str[m_pos + 1] - '0';
+          ++m_pos;
+          found_number = true;
+        }
+        ++m_pos;
+
+        //if (!found_number && noDefault); // throw   example: [#]
+        if (!found_number)
+          value = 1;
+
+        processImplicitAnd(parsedOp, firstPrimitive);
+        m_callback.atomPrimitive(type, value);
+        return true;
+      }
+
+      bool atomPrimitiveCallback(int type, int &value, int defaultValue,
+          int &parsedOp, bool firstPrimitive)
+      {
+        if (value != defaultValue) {
+          processImplicitAnd(parsedOp, firstPrimitive);
+          m_callback.atomPrimitive(type, value);
+          value = defaultValue;
+          return true;
+        }
+        return false;
+      }
+
+      void processImplicitAnd(int &parsedOp, bool firstPrimitive)
+      {
+        if (!parsedOp && !firstPrimitive)
+          m_callback.operation(OP_AndHi);
+        parsedOp = 0;
+      }
+
+      void isValidAtomExprChar()
+      {
+        switch (m_str[m_pos]) {
+          case '*':
+          case '&':
+          case ';':
+          case ',':
+          case '!':
+          case '@':
+          case '#':
+          //case '$':
+          //case '(':
+          //case ')':
+          case '+':
+          case '-':
+          // chack ranges?
+          // no J, Q, j, q, w
+          case '0': case '1': case '2': case '3': case '4':
+          case '5': case '6': case '7': case '8': case '9':
+          case 'A': case 'B': case 'C': case 'D': case 'E':
+          case 'F': case 'G': case 'H': case 'I': case 'K':
+          case 'L': case 'M': case 'N': case 'O': case 'P':
+          case 'R': case 'S': case 'T': case 'U': case 'V':
+          case 'W': case 'X': case 'Y': case 'Z':
+          case 'a': case 'b': case 'c': case 'd': case 'e':
+          case 'f': case 'g': case 'h': case 'i': case 'k':
+          case 'l': case 'm': case 'n': case 'o': case 'p':
+          case 'r': case 's': case 't': case 'u': case 'v':
+          case 'x': case 'y': case 'z':
+            return;
+          default:
+            throw Exception(Exception::SyntaxError, InvalidAtomPrimitive,
+                "Invalid character inside bracketed atom expression", m_pos, 1);
+            break;
+        }
+      }
+
+
+      void parseAtomExpr()
+      {
+        bool first_primitive = true;
+        int parsedOp = 0;
+        std::size_t lastPos = std::string::npos;
+
+        while (m_str[m_pos] != ']') {
+          if (lastPos == m_pos)
+            throw Exception(Exception::SyntaxError, InvalidAtomPrimitive,
+                "Invalid atom primitive", m_pos, 1);
+          isValidAtomExprChar();
+          lastPos = m_pos;
+
+          int chr = m_str[m_pos];
+          switch (chr) {
+            case '&':
+              if (first_primitive)
+                throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
+                    "Binary '&' without left operand", m_pos, 1);
+              m_callback.operation(OP_AndHi);
+              ++m_pos;
+              parsedOp = OP_AndHi;
+              continue;
+            case ';':
+              if (first_primitive)
+                throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
+                    "Binary ';' without left operand", m_pos, 1);
+              m_callback.operation(OP_AndLo);
+              ++m_pos;
+              parsedOp = OP_AndLo;
+              continue;
+            case ',':
+              if (first_primitive)
+                throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
+                    "Binary ',' without left operand", m_pos, 1);
+              m_callback.operation(OP_Or);
+              ++m_pos;
+              parsedOp = OP_Or;
+              continue;
+            case '!':
+              m_callback.operation(OP_Not);
+              ++m_pos;
+              parsedOp = OP_Not;
+              continue;
+            case 'a':
+              processImplicitAnd(parsedOp, first_primitive);
+              m_callback.atomPrimitive(AE_Aromatic, 1);
+              first_primitive = false;
+              ++m_pos;
+              continue;
+            case 'A':
+              switch (m_str[m_pos + 1]) {
+                case 'l':
+                case 'r':
+                case 's':
+                case 'g':
+                case 'u':
+                case 't':
+                case 'c':
+                case 'm':
+                  break;
+                default:
+                  processImplicitAnd(parsedOp, first_primitive);
+                  m_callback.atomPrimitive(AE_Aliphatic, 1);
+                  first_primitive = false;
+                  ++m_pos;
+                  break;
+              }
+              break;
+            case 'R':
+              if (m_str[m_pos + 1] == '0') {
+                processImplicitAnd(parsedOp, first_primitive);
+                m_callback.atomPrimitive(AE_Acyclic, 1);
+                first_primitive = false;
+                m_pos += 2;
+                continue;
+              } else if (!std::isdigit(m_str[m_pos + 1])) {
+                processImplicitAnd(parsedOp, first_primitive);
+                m_callback.atomPrimitive(AE_Cyclic, 1);
+                first_primitive = false;
+                ++m_pos;
+                continue;
+              }
+              break;
+            case 'r':
+              if (!std::isdigit(m_str[m_pos + 1])) {
+                processImplicitAnd(parsedOp, first_primitive);
+                m_callback.atomPrimitive(AE_Cyclic, 1);
+                first_primitive = false;
+                ++m_pos;
+              }
+              break;
+            default:
+              break;
+          }
+
+          // isotope ::= NUMBER
+          parseIsotope();
+          if (atomPrimitiveCallback(AE_Isotope, m_isotope, -1, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // atomic_number ::= '#' NUMBER
+          if (parseCharNumber('#', AE_AtomicNumber, parsedOp, first_primitive, true)) { // true = no default value of 1
+            first_primitive = false;
+            continue;
+          }
+          // symbol
+          std::pair<int, bool> symbol = parseSymbol(true);
+          if (symbol.first != -1) {
+            processImplicitAnd(parsedOp, first_primitive);
+            if (symbol.first == 0)
+              m_callback.atomPrimitive(AE_True, 1); // '*'
+            else if (symbol.second)
+              m_callback.atomPrimitive(AE_AromaticElement, m_element);
+            else
+              m_callback.atomPrimitive(AE_AliphaticElement, m_element);
+            first_primitive = false;
+          }
+          // degree ::= 'D' | 'D' NUMBER
+          if (parseCharNumber('D', AE_Degree, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // valence ::= 'v' | 'v' NUMBER
+          if (parseCharNumber('v', AE_Valence, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // connectivity ::= 'X' | 'X' NUMBER
+          if (parseCharNumber('X', AE_Connectivity, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // hcount ::= 'H' | 'H' NUMBER
+          if (parseCharDigit('H', AE_TotalH, 1, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // implicit_hcount ::= 'h' | 'h' NUMBER
+          if (parseCharDigit('h', AE_ImplicitH, 1, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // ring_membership ::= 'R' | 'R' NUMBER
+          if (parseCharNumber('R', AE_RingMembership, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // ring_size ::= 'r' | 'r' NUMBER
+          if (parseCharNumber('r', AE_RingSize, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // ring_connectivity ::= 'x' | 'x' NUMBER
+          if (parseCharNumber('x', AE_RingConnectivity, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // complex...
+          parseCharge();
+          if (atomPrimitiveCallback(AE_Charge, m_charge, 0, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // complex...
+          parseChiral();
+          if (atomPrimitiveCallback(AE_Chirality, m_chiral, 0, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+          // valence ::= ':' NUMBER
+          parseClass();
+          if (atomPrimitiveCallback(AE_AtomClass, m_class, 0, parsedOp, first_primitive)) {
+            first_primitive = false;
+            continue;
+          }
+        }
+
+        switch (parsedOp) {
+          case OP_AndHi:
+          case OP_AndLo:
+          case OP_Or:
+            throw Exception(Exception::SyntaxError, BinaryOpWithoutRightOperand,
+                "Binary operator inside bracket atom without right operand", m_pos - 1, 1);
+          case OP_Not:
+            throw Exception(Exception::SyntaxError, UnaryOpWithoutArgument,
+                "Unary operator inside bracket atom without argument", m_pos - 1, 1);
+          default:
+            break;
+        }
+      }
+
       /**
        * @code
        * bracket_atom ::= '[' isotope? symbol chiral? hcount? charge? class? ']'
@@ -1553,20 +2266,19 @@ namespace Smiley {
         std::size_t close = findMatchingBracket("[", "]", m_pos);
         ++m_pos;
 
-        parseIsotope();
-        //std::cout << "isotope: " << m_isotope << std::endl;
-        parseSymbol();
-        //std::cout << "element: " << m_element << std::endl;
-        parseChiral();
-        //std::cout << "chrial: " << m_chiral << std::endl;
-        parseHydrogenCount();
-        //std::cout << "hCount: " << m_hCount << std::endl;
-        parseCharge();
-        //std::cout << "charge: " << m_charge << std::endl;
-        parseClass();
-        //std::cout << "class: " << m_class << std::endl;
+        if (m_mode == SmartsMode) {
+          parseAtomExpr();
+          return;
+        }
 
-        m_chiralInfo.back().chiral = m_chiral;
+        parseIsotope();
+        parseSymbol();
+        parseChiral();
+        parseHydrogenCount();
+        parseCharge();
+        parseClass();
+
+        m_chiralInfo.back().chiral = static_cast<Chirality>(m_chiral);
         if (m_hCount >= 1)
           m_chiralInfo.back().nbrs.push_back(implicitHydrogen());
         if (m_hCount > 1 && m_chiral && m_exceptions & InvalidChiralHydrogenCount) {
@@ -1574,7 +2286,6 @@ namespace Smiley {
               "Chiral atoms can only have one hydrogen", m_chiralInfo.back().pos, 1);
         } 
 
-        //std::cout << m_str[m_pos] << std::endl;
         if (m_str[m_pos] != ']')
           throw Exception(Exception::SyntaxError, TrailingCharInBracketAtom,
               "Bracket atom expression contains invalid trailing characters", m_pos, close - m_pos);
@@ -1671,7 +2382,7 @@ namespace Smiley {
         if (DEBUG)
           std::cout << "parseAtom(" << m_str.substr(m_pos) << ")" << std::endl;
 
-        m_element = 0;
+        m_element = -1;
         m_isotope = -1;
         m_charge = 0;
         m_chiral = NotChiral;
@@ -1693,6 +2404,22 @@ namespace Smiley {
         return parseOrganicSubsetAtom();
       }
 
+      void processBondPrimitive(int type, bool &firstPrimitive, int &parsedOp)
+      {
+        if (DEBUG)
+          std::cout << "processBondPrimitive(" << m_str.substr(m_pos) << ")" << std::endl;
+        m_explicitBond = true;
+        ++m_pos;
+        if (m_mode == SmilesMode)
+          return;
+        // implicit OR for bonds
+        if (!firstPrimitive && !parsedOp)
+          m_callback.operation(OP_Or);
+        m_callback.bondPrimitive(type);
+        firstPrimitive = false;
+        parsedOp = 0;
+      }
+
       /**
        * @code
        * bond ::= '-' | '=' | '#' | '$' | ':' | '/' | '\'
@@ -1700,39 +2427,108 @@ namespace Smiley {
        */
       void parseBond()
       {
-        if (m_pos >= m_str.size())
-          return;
         if (DEBUG)
           std::cout << "parseBond(" << m_str.substr(m_pos) << ")" << std::endl;
 
-        if (m_str[m_pos] == '-') {
-          m_bondOrder = 1;
-          m_explicitBond = true;
-          ++m_pos;
-        } else if (m_str[m_pos] == '=') {
-          m_bondOrder = 2;
-          m_explicitBond = true;
-          ++m_pos;
-        } else if (m_str[m_pos] == '#') {
-          m_bondOrder = 3;
-          m_explicitBond = true;
-          ++m_pos;
-        } else if (m_str[m_pos] == '$') {
-          m_bondOrder = 4;
-          m_explicitBond = true;
-          ++m_pos;
-        } else if (m_str[m_pos] == ':') {
-          m_bondOrder = 5;
-          m_explicitBond = true;
-          ++m_pos;
-        } else if (m_str[m_pos] == '/') {
-          m_isUp = true;
-          m_explicitBond = true;
-          ++m_pos;
-        } else if (m_str[m_pos] == '\\') {
-          m_isDown = true;
-          m_explicitBond = true;
-          ++m_pos;
+        bool firstPrimitive = true;
+        int parsedOp = 0;
+        std::size_t lastPos = std::string::npos;
+
+        while (lastPos != m_pos) {
+          if (m_pos >= m_str.size())
+            return;
+          lastPos = m_pos;
+
+          switch (m_str[m_pos]) {
+            case '-':
+              m_bondOrder = 1;
+              processBondPrimitive(BE_Single, firstPrimitive, parsedOp);
+              break;
+            case '=':
+              m_bondOrder = 2;
+              processBondPrimitive(BE_Double, firstPrimitive, parsedOp);
+              break;
+            case '#':
+              m_bondOrder = 3;
+              processBondPrimitive(BE_Triple, firstPrimitive, parsedOp);
+              break;
+            case '$':
+              m_bondOrder = 4;
+              processBondPrimitive(BE_Quadriple, firstPrimitive, parsedOp);
+              break;
+            case ':':
+              m_bondOrder = 5;
+              processBondPrimitive(BE_Aromatic, firstPrimitive, parsedOp);
+              break;
+            case '/':
+              m_isUp = true;
+              processBondPrimitive(BE_Up, firstPrimitive, parsedOp);
+              break;
+            case '\\':
+              m_isDown = true;
+              processBondPrimitive(BE_Down, firstPrimitive, parsedOp);
+              break;
+            case '~':
+              if (m_mode == SmilesMode)
+                break;
+              processBondPrimitive(BE_Any, firstPrimitive, parsedOp);
+              break;
+            case '@':
+              if (m_mode == SmilesMode)
+                break;
+              processBondPrimitive(BE_Ring, firstPrimitive, parsedOp);
+              break;
+            case '&': // legal?
+              if (m_mode == SmilesMode)
+                break;
+              if (firstPrimitive)
+                throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
+                    "Binary '&' in bond expression without left operand", m_pos, 1);
+              m_callback.operation(OP_AndHi);
+              parsedOp = OP_AndHi;
+              ++m_pos;
+              break;
+            case ';': // legal?
+              if (m_mode == SmilesMode)
+                break;
+              if (firstPrimitive)
+                throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
+                    "Binary ';' in bond expression without left operand", m_pos, 1);
+              m_callback.operation(OP_AndLo);
+              parsedOp = OP_AndLo;
+              ++m_pos;
+              break;
+            case ',':
+              if (m_mode == SmilesMode)
+                break;
+              if (firstPrimitive)
+                throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
+                    "Binary ',' in bond expression without left operand", m_pos, 1);
+              m_callback.operation(OP_Or);
+              parsedOp = OP_Or;
+              ++m_pos;
+              break;
+            case '!':
+              if (m_mode == SmilesMode)
+                break;
+              m_callback.operation(OP_Not);
+              parsedOp = OP_Not;
+              ++m_pos;
+              break;
+          }
+        }
+
+        switch (parsedOp) {
+          case OP_AndHi:
+          case OP_AndLo:
+          case OP_Or:
+            throw Exception(Exception::SyntaxError, BinaryOpWithoutRightOperand,
+                "Binary operator in bond expression without right operand", m_pos - 1, 1);
+          case OP_Not:
+            throw Exception(Exception::SyntaxError, UnaryOpWithoutArgument,
+                "Unary operator in bond expression without argument", m_pos - 1, 1);
+          default:
+            break;
         }
       }
 
@@ -2016,19 +2812,34 @@ namespace Smiley {
             throw Exception(Exception::SemanticsError, InvalidChiralValence,
                 "Invalid chiral valence", m_chiralInfo[i].pos, 1);
 
-          m_callback.setChiral(i, m_chiralInfo[i].chiral, m_chiralInfo[i].nbrs);
+          m_callback.setChiral(i, static_cast<Chirality>(m_chiralInfo[i].chiral), m_chiralInfo[i].nbrs);
         }
       }
 
     public:
+      enum Mode {
+        SmilesMode,
+        SmartsMode
+      };
+
       /**
        * Constructor.
        *
        * @param callback The callback function object to handle the information
-       * resulting from parsing.
+       * resulting from parsing. By default, all exceptions are enabled and the
+       * parser is in SMILES mode.
        */
-      Parser(Callback &callback) : m_callback(callback), m_exceptions(~0)
+      Parser(Callback &callback, Mode mode = SmilesMode) : m_callback(callback),
+          m_mode(mode), m_exceptions(~0)
       {
+      }
+
+      /**
+       * Set the parser mode.
+       */
+      void setMode(Mode mode)
+      {
+        m_mode = mode;
       }
 
       /**
@@ -2106,12 +2917,13 @@ namespace Smiley {
 
       std::string m_str; //!< the SMILES/SMARTS string
       std::size_t m_pos; //!< current position in m_str
+      Mode m_mode; // SMILES/SMARTS mode
 
       // atom
       int m_element; //!< atom element
       int m_isotope; //!< atom isotope
       int m_charge; //!< atom charge
-      Chirality m_chiral; //!< atom chirality
+      int m_chiral; //!< atom chirality
       int m_hCount; //!< atom hydrogran count
       int m_class; //!< atom class
       bool m_aromatic; //!< is atom aromatic

@@ -37,7 +37,7 @@ namespace Smiley {
     std::map<int, std::pair<Chirality, std::vector<int> > > chirality;
   };
 
-  struct MoleculeSmilesCallback
+  struct MoleculeSmilesCallback : public CallbackBase
   {
     void clear()
     {

@@ -9,7 +9,13 @@ using namespace Smiley;
 MoleculeSmilesCallback callback;
 const Molecule &mol = callback.molecule;
 
-void parse(const std::string &str)
+PrintCallback smartscallback;
+const std::string &primitives = smartscallback.str;
+
+typedef Parser<PrintCallback> ParserType;
+ParserType::Mode SmartsMode = ParserType::SmartsMode;
+
+void parse(const std::string &str, ParserType::Mode = ParserType::SmilesMode)
 {
   std::cout << "Parsing: " << str << std::endl;
   Parser<MoleculeSmilesCallback> parser(callback);
@@ -23,7 +29,7 @@ void parse(const std::string &str)
       std::cout << "Semantics";
     std::cout << "Error: " << e.what() << "." << std::endl;
     assert(e.pos() < str.size());
-    assert(e.length() < e.pos() + str.size());
+    assert(e.length() <= e.pos() + str.size());
     std::cout << str << std::endl;
     for (std::size_t i = 0; i < e.pos(); ++i)
       std::cout << " ";
@@ -59,6 +65,28 @@ void testException(const std::string &str, ErrorCode errorCode, bool expect = tr
     if (expect)
       ASSERT(std::string("Expected Exception not thrown").empty());
   } catch (const Exception &e) {
+    std::cout << "Error: " << e.what() << "." << std::endl;
+    if (!expect)
+      ASSERT(std::string("Unexpected Exception thrown").empty());
+    ASSERT(e.errorCode() == errorCode);
+  }
+}
+
+void testSmartsException(const std::string &str, ErrorCode errorCode, bool expect = true)
+{
+  std::cout << "Parsing: " << str << std::endl;
+  CallbackBase callback;
+  Parser<CallbackBase> parser(callback, Parser<CallbackBase>::SmartsMode);
+
+  if (!expect)
+    parser.disableExceptions(errorCode);
+
+  try {
+    parser.parse(str);
+    if (expect)
+      ASSERT(std::string("Expected Exception not thrown").empty());
+  } catch (const Exception &e) {
+    std::cout << "Error: " << e.what() << "." << std::endl;
     if (!expect)
       ASSERT(std::string("Unexpected Exception thrown").empty());
     ASSERT(e.errorCode() == errorCode);
@@ -77,6 +105,33 @@ void parseBond(const std::string &str, int order)
   parse(str);
   COMPARE(mol.bonds.size(), 1);
   COMPARE(mol.bonds[0].order, order);
+}
+
+void smarts(const std::string &str, const std::string &correct)
+{
+  std::cout << "Parsing: " << str << std::endl;
+  Parser<PrintCallback> parser(smartscallback, SmartsMode);
+
+  try {
+    parser.parse(str);
+  } catch (Exception &e) {
+    if (e.type() == Exception::SyntaxError)
+      std::cout << "Syntax";
+    else
+      std::cout << "Semantics";
+    std::cout << "Error: " << e.what() << "." << std::endl;
+    assert(e.pos() < str.size());
+    assert(e.length() < e.pos() + str.size());
+    std::cout << str << std::endl;
+    for (std::size_t i = 0; i < e.pos(); ++i)
+      std::cout << " ";
+    // print error indicater
+    for (std::size_t i = 0; i < e.length(); ++i)
+      std::cout << "^";
+    std::cout << std::endl;
+  }
+
+  COMPARE(primitives, correct);
 }
 
 int main(int argc, char **argv)
@@ -446,4 +501,70 @@ int main(int argc, char **argv)
   testException("C[C@H2](F)Cl", InvalidChiralHydrogenCount, false);
 
   parse("[F-][Ti+4]123456789([F-])C%10=C1[C]15=[C]8(CCCC1)[C-]4%10CC[C-]16C2=C3[C]27=[C]91CCCC2 36749863");
+
+  parse("Q");
+
+  smarts("[123]", "123");
+  smarts("[#123]", "#123");
+  smarts("[a]", "a");
+  smarts("[A]", "A");
+  smarts("[R]", "R");
+  smarts("[R0]", "R0");
+  smarts("[D]", "D1");
+  smarts("[D2]", "D2");
+  smarts("[v]", "v1");
+  smarts("[v2]", "v2");
+  smarts("[X]", "X1");
+  smarts("[X2]", "X2");
+  smarts("[H]", "H1");
+  smarts("[H2]", "H2");
+  smarts("[h]", "h1");
+  smarts("[h2]", "h2");
+  smarts("[R1]", "R1");
+  smarts("[R2]", "R2");
+  smarts("[r]", "R");
+  smarts("[r6]", "r6");
+  smarts("[x]", "x1");
+  smarts("[x3]", "x3");
+  smarts("[-]", "-1");
+  smarts("[--]", "-2");
+  smarts("[-3]", "-3");
+  smarts("[+]", "+1");
+  smarts("[++]", "+2");
+  smarts("[+3]", "+3");
+  smarts("[@]", "@1");
+  smarts("[@OH23]", "@52");
+  smarts("[:123]", ":123");
+
+  smarts("[**]", "*&*");
+  smarts("[*&*]", "*&*");
+  smarts("[*;*]", "*;*");
+  smarts("[*,*]", "*,*");
+  testSmartsException("[&*]", BinaryOpWithoutLeftOperand);
+  testSmartsException("[*&]", BinaryOpWithoutRightOperand);
+  smarts("[!C]", "!<A6>");
+  testSmartsException("[!]", UnaryOpWithoutArgument);
+  testSmartsException("[Q]", InvalidAtomPrimitive);
+  smarts("**", "*-*");
+  smarts("*-*", "*-*");
+  smarts("*=*", "*=*");
+  smarts("*#*", "*#*");
+  smarts("*$*", "*$*");
+  smarts("*:*", "*:*");
+  smarts("*~*", "*~*");
+  smarts("*@*", "*@*");
+  smarts("*-=*", "*-,=*");
+  smarts("[*-&=*]", "*-&=*"); // legal?
+  smarts("[*-;=*]", "*-;=*"); // legal?
+  smarts("[*-,=*]", "");
+  smarts("[*!-*]", "");
+  smarts("[]", "");
+  testSmartsException("[*,-*]", BinaryOpWithoutLeftOperand);
+  testSmartsException("[*-,*]", BinaryOpWithoutRightOperand);
+  testSmartsException("[*!*]", UnaryOpWithoutArgument);
+  testSmartsException("[*Q*]", InvalidBondPrimitive);
+
+  smarts("*", "*");
+  smarts("[*=]*", "");
+
 }
