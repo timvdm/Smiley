@@ -545,7 +545,7 @@ int main(int argc, char **argv)
   smarts("[!C]", "!<A6>");
   testSmartsException("[!]", UnaryOpWithoutArgument);
   testSmartsException("[Q]", InvalidAtomPrimitive);
-  smarts("**", "*-*");
+  smarts("**", "**");
   smarts("*-*", "*-*");
   smarts("*=*", "*=*");
   smarts("*#*", "*#*");
@@ -554,17 +554,14 @@ int main(int argc, char **argv)
   smarts("*~*", "*~*");
   smarts("*@*", "*@*");
   smarts("*-=*", "*-,=*");
-  smarts("[*-&=*]", "*-&=*"); // legal?
-  smarts("[*-;=*]", "*-;=*"); // legal?
-  smarts("[*-,=*]", "");
-  smarts("[*!-*]", "");
-  smarts("[]", "");
-  testSmartsException("[*,-*]", BinaryOpWithoutLeftOperand);
-  testSmartsException("[*-,*]", BinaryOpWithoutRightOperand);
-  testSmartsException("[*!*]", UnaryOpWithoutArgument);
-  testSmartsException("[*Q*]", InvalidBondPrimitive);
+  smarts("*-&=*", "*-&=*");
+  smarts("*-;=*", "*-;=*");
+  smarts("*-,=*", "*-,=*");
+  smarts("*!-*", "*!-*");
+  testSmartsException("*,-*", BinaryOpWithoutLeftOperand);
+  testSmartsException("*-,*", BinaryOpWithoutRightOperand);
+  testSmartsException("*!*", UnaryOpWithoutArgument);
 
   smarts("*", "*");
-  smarts("[*=]*", "");
 
 }
