@@ -39,11 +39,6 @@
 
 namespace Smiley {
 
-  // OpenSMILES comments:
-  // * chiral: TB only has 20 values (not 30) [OpenSMILES 2.2]
-  // * @ is anti-clockwise and @@ is clockwise [OpenSMILES 3.9.6]
-  //   exchange 'clockwise' and 'anti-clockwise' in 2nd sentence
-
   /**
    * @mainpage 
    *
@@ -156,103 +151,6 @@ namespace Smiley {
    * };
    * @endcode
    *
-   * @section smiles_grammar SMILES Syntax and Grammar
-   *
-   * Notations:
-   * @code
-   * TYPES
-   *
-   *   identifier   name for definition
-   *   '...'        literal string
-   *   expr         expression (may contain operators)
-   *
-   * STATEMENTS
-   *
-   *   identifier ::= definition (expressions)
-   *
-   * OPERATORS
-   *
-   *   expr expr      concatination is implicit
-   *   expr | expr    or
-   *   expr?          none or one
-   *   expr+          one or more
-   *   expr*          none or more
-   * @endcode
-   *
-   * Grammar:
-   * @code
-   * PRIMITIVES
-   *
-   *   DIGIT ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
-   *
-   *   NUMBER ::= DIGIT+
-   *
-   * ATOMS
-   *
-   *   atom ::= bracket_atom | aliphatic_organic | aromatic_organic | '*'
-   *
-   * ORGANIC SUBSET ATOMS
-   *
-   *   aliphatic_organic ::= 'B' | 'C' | 'N' | 'O' | 'S' | 'P' | 'F' | 'Cl' | 'Br' | 'I'
-   *   aromatic_organic ::= 'b' | 'c' | 'n' | 'o' | 's' | 'p'
-   *
-   * BRACKET ATOMS
-   *
-   *   bracket_atom ::= '[' isotope? symbol chiral? hcount? charge? class? ']'
-   *   symbol := element_symbols | aromatic_symbols | '*'
-   *   isotope ::= NUMBER
-   *   element_symbols ::= 'H' | 'He' | 'Li' | 'Be' | 'B' | 'C' | 'N' | 'O' | 'F'
-   *       | 'Ne' | 'Na' | 'Mg' | 'Al' | 'Si' | 'P' | 'S' | 'Cl' | 'Ar' | 'K'
-   *       | 'Ca' | 'Sc' | 'Ti' | 'V' | 'Cr' | 'Mn' | 'Fe' | 'Co' | 'Ni' | 'Cu'
-   *       | 'Zn' | 'Ga' | 'Ge' | 'As' | 'Se' | 'Br' | 'Kr' | 'Rb' | 'Sr' | 'Y'
-   *       | 'Zr' | 'Nb' | 'Mo' | 'Tc' | 'Ru' | 'Rh' | 'Pd' | 'Ag' | 'Cd' | 'In'
-   *       | 'Sn' | 'Sb' | 'Te' | 'I' | 'Xe' | 'Cs' | 'Ba' | 'Hf' | 'Ta' | 'W'
-   *       | 'Re' | 'Os' | 'Ir' | 'Pt' | 'Au' | 'Hg' | 'Tl' | 'Pb' | 'Bi' | 'Po'
-   *       | 'At' | 'Rn' | 'Fr' | 'Ra' | 'Rf' | 'Db' | 'Sg' | 'Bh' | 'Hs' | 'Mt'
-   *       | 'Ds' | 'Rg' | 'La' | 'Ce' | 'Pr' | 'Nd' | 'Pm' | 'Sm' | 'Eu' | 'Gd'
-   *       | 'Tb' | 'Dy' | 'Ho' | 'Er' | 'Tm' | 'Yb' | 'Lu' | 'Ac' | 'Th' | 'Pa'
-   *       | 'U' | 'Np' | 'Pu' | 'Am' | 'Cm' | 'Bk' | 'Cf' | 'Es' | 'Fm' | 'Md'
-   *       | 'No' | 'Lr'
-   *   aromatic_symbols ::= 'c' | 'n' | 'o' | 'p' | 's' | 'se' | 'as'
-   *
-   * CHIRALITY
-   *
-   *   chiral ::= '@' | '@@'
-   *       | '@TH1' | '@TH2'
-   *       | '@AL1' | '@AL2'
-   *       | '@SP1' | '@SP2' | '@SP3'
-   *       | '@TB1' | '@TB2' | '@TB3' | ... | '@TB19' | '@TB20'
-   *       | '@OH1' | '@OH2' | '@OH3' | ... | '@OH29' | '@OH30'
-   *
-   * HYDROGENS
-   *
-   *   hcount ::= 'H' | 'H' DIGIT
-   *
-   * CHARGE
-   *
-   *   charge ::= '-' | '-' DIGIT | '+' | '+' DIGIT
-   *       | '--' *deprecated*
-   *       | '++' *deprecated*
-   *
-   * ATOM CLASS
-   *
-   *   class ::= ':' NUMBER
-   *
-   * BONDS AND CHAINS
-   *
-   *   bond ::= '-' | '=' | '#' | '$' | ':' | '/' | '\'
-   *   ringbond ::= bond? DIGIT | bond? '%' DIGIT DIGIT
-   *   branched_atom ::= atom ringbond* branch*
-   *   branch ::= '(' chain ')' | '(' bond chain ')' | '(' dot chain ')'
-   *   chain ::= branched_atom | chain branched_atom | chain bond branched_atom | chain dot branched_atom
-   *   dot ::= '.'
-   *
-   * SMILES STRINGS
-   *
-   *   smiles ::= chain terminator
-   *   terminator ::= SPACE TAB | LINEFEED | CARRIAGE_RETURN | END_OF_STRING
-   * @endcode
-   * 
    * @section smiles_semantics SMILES Semantics
    *
    * For a detailed description of the OpenSMILES semantics, the specification
@@ -372,130 +270,6 @@ namespace Smiley {
    *
    *
    *  
-   * @section smarts_grammar SMARTS Grammar
-   * The SMARTS grammar is very similar to the SMILES grammar. The definition for
-   * bracket_atom is different and the bond definition is replaced by
-   * bond_expression.
-   *
-   * @code
-   * PRIMITIVES
-   *
-   *   DIGIT ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
-   *
-   *   NUMBER ::= DIGIT+
-   *
-   * ATOMS
-   *
-   *   atom ::= bracket_atom | aliphatic_organic | aromatic_organic | '*'
-   *
-   * ORGANIC SUBSET ATOMS
-   *
-   *   aliphatic_organic ::= 'B' | 'C' | 'N' | 'O' | 'S' | 'P' | 'F' | 'Cl' | 'Br' | 'I'
-   *
-   *   aromatic_organic ::= 'b' | 'c' | 'n' | 'o' | 's' | 'p'
-   *
-   * BRACKET ATOMS
-   *
-   *   bracket_atom ::= '[' atom_expression+ ']'
-   *
-   *   atom_expression ::= atom_primitive
-   *       | recursive_smarts
-   *       | unary_operator atom_primitive
-   *       | atom_expression atom_primitive
-   *       | atom_expression binary_operator atom_primitive
-   *
-   *   recursive_smarts ::= '$(' chain ')'
-   *
-   *   unary_operator ::= '!'
-   *
-   *   binary_operator ::= '&' | ';' | ','
-   *
-   * ATOM PRIMITIVES
-   *
-   *   atom_primitive ::= isotope | symbol | atomic_number | 'a' | 'A'
-   *       | degree | valence | connectivity
-   *       | total_hcount | implicit_hcount
-   *       | ring_membership | ring_size | ring_connectivity 
-   *       | charge | chiral | class
-   *
-   *   symbol := element_symbols | aromatic_symbols | '*'
-   *      
-   *   element_symbols ::= 'H' | 'He' | 'Li' | 'Be' | 'B' | 'C' | 'N' | 'O' | 'F'
-   *       | 'Ne' | 'Na' | 'Mg' | 'Al' | 'Si' | 'P' | 'S' | 'Cl' | 'Ar' | 'K'
-   *       | 'Ca' | 'Sc' | 'Ti' | 'V' | 'Cr' | 'Mn' | 'Fe' | 'Co' | 'Ni' | 'Cu'
-   *       | 'Zn' | 'Ga' | 'Ge' | 'As' | 'Se' | 'Br' | 'Kr' | 'Rb' | 'Sr' | 'Y'
-   *       | 'Zr' | 'Nb' | 'Mo' | 'Tc' | 'Ru' | 'Rh' | 'Pd' | 'Ag' | 'Cd' | 'In'
-   *       | 'Sn' | 'Sb' | 'Te' | 'I' | 'Xe' | 'Cs' | 'Ba' | 'Hf' | 'Ta' | 'W'
-   *       | 'Re' | 'Os' | 'Ir' | 'Pt' | 'Au' | 'Hg' | 'Tl' | 'Pb' | 'Bi' | 'Po'
-   *       | 'At' | 'Rn' | 'Fr' | 'Ra' | 'Rf' | 'Db' | 'Sg' | 'Bh' | 'Hs' | 'Mt'
-   *       | 'Ds' | 'Rg' | 'La' | 'Ce' | 'Pr' | 'Nd' | 'Pm' | 'Sm' | 'Eu' | 'Gd'
-   *       | 'Tb' | 'Dy' | 'Ho' | 'Er' | 'Tm' | 'Yb' | 'Lu' | 'Ac' | 'Th' | 'Pa'
-   *       | 'U' | 'Np' | 'Pu' | 'Am' | 'Cm' | 'Bk' | 'Cf' | 'Es' | 'Fm' | 'Md'
-   *       | 'No' | 'Lr'
-   *   
-   *   aromatic_symbols ::= 'c' | 'n' | 'o' | 'p' | 's' | 'se' | 'as'
-   *
-   *   isotope ::= NUMBER
-   *
-   *   atomic_number ::= '#' NUMBER
-   *
-   *   degree ::= 'D' | 'D' NUMBER
-   *
-   *   valence ::= 'v' | 'v' NUMBER
-   *
-   *   connectivity ::= 'X' | 'X' NUMBER
-   *
-   *   total_hcount ::= 'H' | 'H' DIGIT
-   *
-   *   implicit_hcount ::= 'h' | 'h' DIGIT
-   *
-   *   ring_membership ::= 'R' | 'R' NUMBER
-   *
-   *   ring_size ::= 'r' | 'r' NUMBER
-   *
-   *   ring_connectivity ::= 'x' | 'x' NUMBER
-   *
-   *   charge ::= '-' | '-' DIGIT | '+' | '+' DIGIT
-   *       | '--' *deprecated*
-   *       | '++' *deprecated*
-   *
-   *   chiral ::= '@' | '@@'
-   *       | '@TH1' | '@TH2'
-   *       | '@AL1' | '@AL2'
-   *       | '@SP1' | '@SP2' | '@SP3'
-   *       | '@TB1' | '@TB2' | '@TB3' | ... | '@TB19' | '@TB20'
-   *       | '@OH1' | '@OH2' | '@OH3' | ... | '@OH29' | '@OH30'
-   *
-   *   class ::= ':' NUMBER
-   *
-   * BONDS
-   *
-   *   bond_expression ::= bond_primitive
-   *       | unary_operator bond_primitive
-   *       | bond_expression bond_primitive
-   *       | bond_expression binary_operator bond_primitive
-   *
-   *   bond_primitive ::= '-' | '=' | '#' | '$' | ':' | '/' | '\' | '~' | '@'
-   *
-   * CHAINS
-   *
-   *   ringbond ::= bond_expression? DIGIT | bond_expression? '%' DIGIT DIGIT
-   *   
-   *   branched_atom ::= atom ringbond* branch*
-   *   
-   *   branch ::= '(' chain ')' | '(' bond_expression chain ')' | '(' dot chain ')'
-   *   
-   *   chain ::= branched_atom | chain branched_atom | chain bond_expression branched_atom | chain dot branched_atom
-   *   
-   *   dot ::= '.'
-   *
-   * SMARTS STRINGS
-   *
-   *   smarts ::= chain terminator
-   *   
-   *   terminator ::= SPACE TAB | LINEFEED | CARRIAGE_RETURN | END_OF_STRING
-   * @endcode
-   *
    * @section license License
    * @code
    * Copyright (c) 2012, Tim Vandermeersch
@@ -530,12 +304,13 @@ namespace Smiley {
    * The elements.
    */
   enum Elements {
-    H = 1, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V,
-    Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge, As, Se, Br, Kr, Rb, Sr, Y, Zr, Nb, Mo, Tc, Ru,
-    Rh, Pd, Ag, Cd, In, Sn, Sb, Te, I, Xe, Cs, Ba, Hf, Ta, W, Re, Os, Ir, Pt, Au, Hg,
-    Tl, Pb, Bi, Po, At, Rn, Fr, Ra, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, La, Ce, Pr, Nd, Pm,
-    Sm, Eu, Gd, Tb, Dy, Ho, Er, Tm, Yb, Lu, Ac, Th, Pa, U, Np, Pu, Am, Cm, Bk, Cf, Es,
-    Fm, Md, No, Lr
+    H = 1,                                                                                                                      He,
+    Li, Be,                                                                                                  B,  C,  N,  O,  F, Ne,
+    Na, Mg,                                                                                                 Al, Si,  P,  S, Cl, Ar,
+     K, Ca,                                                         Sc, Ti,  V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Ga, Ge, As, Se, Br, Kr,
+    Rb, Sr,                                                          Y, Zr, Nb, Mo, Tc, Ru, Rh, Pd, Ag, Cd, In, Sn, Sb, Te,  I, Xe,
+    Cs, Ba, La, Ce, Pr, Nd, Pm, Sm, Eu, Gd, Tb, Dy, Ho, Er, Tm, Yb, Lu, Hf, Ta,  W, Re, Os, Ir, Pt, Au, Hg, Tl, Pb, Bi, Po, At, Rn,
+    Fr, Ra, Ac, Th, Pa,  U, Np, Pu, Am, Cm, Bk, Cf, Es, Fm, Md, No, Lr, Rf, Db, Sg, Bh, Hs, Mt, Ds, Rg, Cn, Fl = 114, Lv = 116
   };
 
   /**
@@ -1429,6 +1204,8 @@ namespace Smiley {
               m_element = Lu;
             else if (checkNextChar('r'))
               m_element = Lr;
+            else if (checkNextChar('v'))
+              m_element = Lv;
             break;
           case 'B':
             if (checkNextChar('e'))
@@ -1467,6 +1244,8 @@ namespace Smiley {
               m_element = Cm;
             else if (checkNextChar('f'))
               m_element = Cf;
+            else if (checkNextChar('n'))
+              m_element = Cn;
             else
               m_element = C;
             break;
@@ -1501,6 +1280,8 @@ namespace Smiley {
               m_element = Fr;
             else if (checkNextChar('m'))
               m_element = Fm;
+            else if (checkNextChar('l'))
+              m_element = Fl;
             else
               m_element = F;
             break;
@@ -1672,6 +1453,10 @@ namespace Smiley {
             break;
           case 'U':
             m_element = U;
+            break;
+          case 'b':
+            m_element = B;
+            m_aromatic = true;
             break;
           case 'c':
             m_element = C;
