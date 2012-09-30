@@ -1672,6 +1672,10 @@ namespace Smiley {
           if (std::isdigit(m_str[m_pos + 1])) {
             m_charge = - (m_str[m_pos + 1] - '0');
             m_pos += 2;
+            if (std::isdigit(m_str[m_pos])) {
+              m_charge = 10 * m_charge - (m_str[m_pos] - '0');
+              ++m_pos;
+            }
             return;
           }
           ++m_pos;
@@ -1685,6 +1689,10 @@ namespace Smiley {
           if (std::isdigit(m_str[m_pos + 1])) {
             m_charge = m_str[m_pos + 1] - '0';
             m_pos += 2;
+            if (std::isdigit(m_str[m_pos])) {
+              m_charge = 10 * m_charge + (m_str[m_pos] - '0');
+              ++m_pos;
+            }
             return;
           }
           ++m_pos;
@@ -1818,6 +1826,7 @@ namespace Smiley {
           case '!':
           case '@':
           case '#':
+          case ':':
           //case '$':
           //case '(':
           //case ')':

@@ -253,6 +253,8 @@ int main(int argc, char **argv)
   COMPARE(mol.atoms[0].charge, -1);
   parse("[C-3]");
   COMPARE(mol.atoms[0].charge, -3);
+  parse("[C-15]");
+  COMPARE(mol.atoms[0].charge, -15);
   parse("[C+]");
   COMPARE(mol.atoms[0].charge, 1);
   parse("[C++]");
@@ -261,6 +263,8 @@ int main(int argc, char **argv)
   COMPARE(mol.atoms[0].charge, 1);
   parse("[C+2]");
   COMPARE(mol.atoms[0].charge, 2);
+  parse("[C+15]");
+  COMPARE(mol.atoms[0].charge, 15);
 
   parse("[C:1]");
   COMPARE(mol.atoms[0].atomClass, 1);
