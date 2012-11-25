@@ -1076,6 +1076,16 @@ namespace Smiley {
         return match;
       }
 
+      void print_chiralNbrs()
+      {
+        for (std::size_t i = 0; i < m_chiralInfo.size(); ++i) {
+          std::cout << "chiralNbrs for " << i << ": ";
+          for (std::size_t j = 0; j < m_chiralInfo[i].nbrs.size(); ++j)
+            std::cout << m_chiralInfo[i].nbrs[j] << " ";
+          std::cout << std::endl;
+        }
+      }
+
       /**
        * Add a bond by calling the callback's addBond() member function.
        * 
@@ -1083,8 +1093,12 @@ namespace Smiley {
        * @param target Bond target atom index (0...N)
        * @param order The bond order.
        */
-      void addBond(int source, int target, int order, bool isUp, bool isDown)
+      void addBond(int source, int target, int order, bool isUp, bool isDown, int rnum = 0)
       {
+        //std::cout << "addBond(" << source << ", " << target << ", rnum = " << rnum << ")" << std::endl;
+        //print_chiralNbrs();
+
+        // check for parallel ring bonds
         for (std::size_t i = 0; i < m_chiralInfo[source].nbrs.size(); i++) {
           int nbr = m_chiralInfo[source].nbrs[i];
           if (nbr == target) {
@@ -1095,6 +1109,7 @@ namespace Smiley {
               return; // ignore parallel bond
           }
         }
+        // check for self-loop ring bonds
         if (source == target) {
           if (m_exceptions & InvalidRingBond)
             throw Exception(Exception::SemanticsError, InvalidRingBond,
@@ -1103,9 +1118,20 @@ namespace Smiley {
             return; // ignore self-loop
         }
 
-        m_callback.addBond(source, target, order, isUp, isDown);
+        if (rnum)
+          m_callback.addBond(target, source, order, isUp, isDown);
+        else
+          m_callback.addBond(source, target, order, isUp, isDown);
 
-        m_chiralInfo[source].nbrs.push_back(target);
+        if (!rnum) {
+          m_chiralInfo[source].nbrs.push_back(target);
+        } else {
+          for (std::size_t i = 0; i < m_chiralInfo.size(); ++i)
+            for (std::size_t j = 0; j < m_chiralInfo[i].nbrs.size(); ++j)
+              if (m_chiralInfo[i].nbrs[j] == -rnum)
+                m_chiralInfo[i].nbrs[j] = target;
+        }
+
         if (m_chiralInfo[target].nbrs.size() && m_chiralInfo[target].nbrs.front() == implicitHydrogen())
           m_chiralInfo[target].nbrs.insert(m_chiralInfo[target].nbrs.begin(), source);
         else
@@ -2345,6 +2371,8 @@ namespace Smiley {
       void processRingBond(int rnum, std::size_t pos)
       {
         //std::cout << "BEFORE processing " << rnum << std::endl; printRingBonds();
+
+        // check if this ringbond is the second of a pair
         typename std::map<int, std::vector<RingBondInfo> >::iterator ringBond = m_ringBonds.begin();
         std::size_t j;
         bool found = false;
@@ -2358,7 +2386,9 @@ namespace Smiley {
             break;
         }
         if (ringBond != m_ringBonds.end()) {
+          // this is the second ringbond of a pair, make the bond
           if (ringBond->second[j].isExplicit) {
+            // check if the bond types match
             if (m_explicitBond && m_exceptions & ConflictingRingBonds) {
               if (ringBond->second[j].order != m_bondOrder || 
                   ringBond->second[j].isUp != m_isUp ||
@@ -2366,14 +2396,19 @@ namespace Smiley {
                 throw Exception(Exception::SemanticsError, ConflictingRingBonds,
                     "Conflicing ring bonds", pos, 1);
             }
-            addBond(ringBond->first, m_prev, ringBond->second[j].order, ringBond->second[j].isUp, ringBond->second[j].isDown);
+            addBond(ringBond->first, m_prev, ringBond->second[j].order, ringBond->second[j].isUp, ringBond->second[j].isDown, rnum);
           } else
-            addBond(ringBond->first, m_prev, m_bondOrder, m_isUp, m_isDown);
+            addBond(ringBond->first, m_prev, m_bondOrder, m_isUp, m_isDown, rnum);
+          // remove the ringbond from the list so it can be reused
           ringBond->second.erase(ringBond->second.begin() + j);
           if (ringBond->second.empty())
             m_ringBonds.erase(ringBond);
-        } else
+        } else {
+          // add the ringbond to the list
           m_ringBonds[m_prev].push_back(RingBondInfo(rnum, m_bondOrder, m_isUp, m_isDown, m_explicitBond, pos));
+          m_chiralInfo[m_prev].nbrs.push_back(-rnum);
+        }
+
         //std::cout << "AFTER processing " << rnum << std::endl; printRingBonds();
         resetBondInfo();
       }
