@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 
-#ifdef _MP_VER
+#ifdef _MSC_VER
 #define FUNCTION_SIGNATURE __FUNCSIG__
 #else
 #define FUNCTION_SIGNATURE __PRETTY_FUNCTION__
