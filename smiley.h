@@ -33,7 +33,7 @@
 #include <sstream>
 #include <limits>
 #include <iostream>
-#include <cctype>s
+#include <cctype>
 
 //#include <cassert>
 #define DEBUG 0
