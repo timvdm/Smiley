@@ -567,69 +567,6 @@ namespace Smiley {
     BE_Any = BE_True
   };
 
-  struct SmartsAtomExpr
-  {
-    SmartsAtomExpr(int typ) : type(typ) {}
-    int type;
-    union {
-      struct {
-        int value;
-      } leaf;
-      struct {
-        void *recursive;
-      } recursive;
-      struct {
-        SmartsAtomExpr *arg;
-      } unary;
-      struct {
-        SmartsAtomExpr *lft;
-        SmartsAtomExpr *rgt;
-      } binary;
-    };
-  };
-
-  struct SmartsBondExpr
-  {
-    SmartsBondExpr(int typ) : type(typ) {}
-    int type;
-    struct {
-      SmartsBondExpr *arg;
-    } unary;
-    struct {
-      SmartsBondExpr *lft;
-      SmartsBondExpr *rgt;
-    } binary;
-  };
-
-  struct SmartsAtom
-  {
-    SmartsAtom() : expr(0), atomClass(0), chiral(0) {}
-    SmartsAtom(SmartsAtomExpr *expr_, int ac, bool chrl)
-        : expr(expr_), atomClass(ac), chiral(chrl) {}
-    SmartsAtomExpr *expr;
-    int atomClass;
-    bool chiral;
-  };
-
-  struct SmartsBond
-  {
-    SmartsBond() : source(0), target(0), grow(false) {}
-    SmartsBond(int src, int trg, bool grw = false)
-        : source(src), target(trg), grow(grw) {}
-    SmartsBondExpr *expr;
-    int source;
-    int target;
-    bool grow;
-  };
-
-  struct Smarts
-  {
-    Smarts() : chiral(false) {}
-    std::vector<SmartsAtom> atoms;
-    std::vector<SmartsBond> bonds;
-    bool chiral;
-  };
-
   /**
    * Base class for Callback function objects.
    */
@@ -647,6 +584,7 @@ namespace Smiley {
      * SMILES/SMARTS is parsed.
      */
     void setChiral(int index, Chirality chirality, const std::vector<int> &chiralNbrs) {}
+    void end() {}
     //@}
     //@name SMILES
     /**
@@ -2705,6 +2643,8 @@ namespace Smiley {
               "Unmatched ring bond", m_ringBonds.begin()->second[0].pos, 1);
 
         processStereochemistry();
+
+        m_callback.end();
       }
 
       /**
