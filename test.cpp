@@ -329,8 +329,8 @@ int main(int argc, char **argv)
   COMPARE(mol.bonds[1].source, 1);
   COMPARE(mol.bonds[1].target, 2);
   COMPARE(mol.bonds[1].order, 1);
-  COMPARE(mol.bonds[2].source, 0);
-  COMPARE(mol.bonds[2].target, 2);
+  COMPARE(mol.bonds[2].source, 2);
+  COMPARE(mol.bonds[2].target, 0);
   COMPARE(mol.bonds[2].order, 1);
 
   parse("C=1CC1");
@@ -567,5 +567,6 @@ int main(int argc, char **argv)
   testSmartsException("*!*", UnaryOpWithoutArgument);
 
   smarts("*", "*");
+  smarts("[AR]", "A&R1");
 
 }
