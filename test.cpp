@@ -522,13 +522,15 @@ int main(int argc, char **argv)
   smarts("[X2]", "X2");
   smarts("[H]", "H1");
   smarts("[H2]", "H2");
-  smarts("[h]", "h1");
+  smarts("[h]", "h");
+  smarts("[h1]", "h1");
   smarts("[h2]", "h2");
   smarts("[R1]", "R1");
   smarts("[R2]", "R2");
   smarts("[r]", "R");
   smarts("[r6]", "r6");
-  smarts("[x]", "x1");
+  smarts("[x]", "x");
+  smarts("[x1]", "x1");
   smarts("[x3]", "x3");
   smarts("[-]", "-1");
   smarts("[--]", "-2");
@@ -567,6 +569,13 @@ int main(int argc, char **argv)
   testSmartsException("*!*", UnaryOpWithoutArgument);
 
   smarts("*", "*");
-  smarts("[AR]", "A&R1");
+  smarts("[AR]", "A&R");
+  smarts("[AR0]", "A&R0");
+  smarts("[AR1]", "A&R1");
 
+  
+  
+  parse("n1cccc1");
+  parse("[n]1cccc1");
+  parse("[nH]1cccc1");
 }

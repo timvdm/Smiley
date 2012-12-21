@@ -48,6 +48,7 @@ namespace Smiley {
 
     void addAtom(int atomicNumber, bool aromatic, int isotope, int hCount, int charge, int atomClass)
     {
+      //std::cout << "addAtom(atomicNumber = " << atomicNumber << ", hCount = " << hCount << ")" << std::endl;
       molecule.atoms.resize(molecule.atoms.size() + 1);
       molecule.atoms.back().element = atomicNumber;
       molecule.atoms.back().aromatic = aromatic;
