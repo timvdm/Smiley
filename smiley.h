@@ -602,7 +602,8 @@ namespace Smiley {
      * Invoked when a unary or binary logical operator is parsed
      * (i.e. '&', ';' or ','). This method is also invoked for implicit AND.
      */
-    void operation(int type) {}
+    void atomOperation(int type) {}
+    void bondOperation(int type) {}
     /**
      * Invoked when an unbracketed atom (i.e. organic subset) is parsed.
      */
@@ -610,7 +611,9 @@ namespace Smiley {
     /**
      * Invoked when an atom primitive is parsed.
      */
+    void beginAtom() {}
     void atomPrimitive(int type, int value) {}
+    void endAtom() {}
     /**
      * Invoked when a bond primitive is parsed. This method is also invoked for
      * implicit bonds.
@@ -628,7 +631,7 @@ namespace Smiley {
     /**
      * Invoked when a prviously found ring bond number is parsed to add the bond.
      */
-    void endRingBond(int number, int index) {}
+    void endRingBond(int number) {}
     //@}
   };
 
@@ -691,7 +694,7 @@ namespace Smiley {
       std::cout << std::endl;
     }
 
-    void operation(int type)
+    void atomOperation(int type)
     {
       switch (type) {
         case OP_Not:
@@ -708,6 +711,11 @@ namespace Smiley {
           break;
       }
       std::cout << "operation: " << str[str.size() - 1] << std::endl;
+    }
+
+    void bondOperation(int type)
+    {
+      atomOperation(type);
     }
 
     void addOrganicSubsetAtom(int element, bool aromatic)
@@ -856,11 +864,10 @@ namespace Smiley {
       std::cout << "startRingBond: " << number << std::endl;
     }
 
-    void startRingBond(int number, int index)
+    void endRingBond(int number)
     {
       str += number2string(number);
-      std::cout << "startRingBond: " << number << std::endl
-                << "    index: " << index << std::endl;
+      std::cout << "endRingBond: " << number << std::endl;
     }
 
     std::string str;
@@ -908,15 +915,15 @@ namespace Smiley {
        */
       struct RingBondInfo
       {
-        RingBondInfo() : number(-1), order(-1), isUp(false), isDown(false),
-            pos(std::string::npos)
+        RingBondInfo() : pos(std::string::npos), number(-1), order(-1),
+            isUp(false), isDown(false), isExplicit(false)
         {
         }
 
         RingBondInfo(int number_, int order_, bool isUp_, bool isDown_,
-            bool isExplicit_, std::size_t pos_) : number(number_),
+            bool isExplicit_, std::size_t pos_) : pos(pos_), number(number_),
             order(order_), isUp(isUp_), isDown(isDown_),
-            isExplicit(isExplicit_), pos(pos_)
+            isExplicit(isExplicit_)
         {
         }
 
@@ -1038,11 +1045,11 @@ namespace Smiley {
        */
       void addBond(int source, int target, int order, bool isUp, bool isDown, int rnum = 0)
       {
-        //std::cout << "addBond(" << source << ", " << target << ", rnum = " << rnum << ")" << std::endl;
+        std::cout << "addBond(" << source << ", " << target << ", " << order << ", rnum = " << rnum << ")" << std::endl;
         //print_chiralNbrs();
 
         if (order == -1) {
-          if (m_aromaticAtoms[m_prev] && m_aromaticAtoms[m_index])
+          if (m_aromaticAtoms[source] && m_aromaticAtoms[target])
             order = 5;
           else
             order = 1;
@@ -1805,7 +1812,7 @@ namespace Smiley {
       void processImplicitAnd(int &parsedOp, bool firstPrimitive)
       {
         if (!parsedOp && !firstPrimitive)
-          m_callback.operation(OP_AndHi);
+          m_callback.atomOperation(OP_AndHi);
         parsedOp = 0;
       }
 
@@ -1869,7 +1876,7 @@ namespace Smiley {
               if (first_primitive)
                 throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
                     "Binary '&' without left operand", m_pos, 1);
-              m_callback.operation(OP_AndHi);
+              m_callback.atomOperation(OP_AndHi);
               ++m_pos;
               parsedOp = OP_AndHi;
               continue;
@@ -1877,7 +1884,7 @@ namespace Smiley {
               if (first_primitive)
                 throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
                     "Binary ';' without left operand", m_pos, 1);
-              m_callback.operation(OP_AndLo);
+              m_callback.atomOperation(OP_AndLo);
               ++m_pos;
               parsedOp = OP_AndLo;
               continue;
@@ -1885,13 +1892,13 @@ namespace Smiley {
               if (first_primitive)
                 throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
                     "Binary ',' without left operand", m_pos, 1);
-              m_callback.operation(OP_Or);
+              m_callback.atomOperation(OP_Or);
               ++m_pos;
               parsedOp = OP_Or;
               continue;
             case '!':
               processImplicitAnd(parsedOp, first_primitive);
-              m_callback.operation(OP_Not);
+              m_callback.atomOperation(OP_Not);
               ++m_pos;
               parsedOp = OP_Not;
               continue;
@@ -1922,18 +1929,31 @@ namespace Smiley {
               }
               break;
             case 'R':
-              if (m_str[m_pos + 1] == '0') {
-                processImplicitAnd(parsedOp, first_primitive);
-                m_callback.atomPrimitive(AE_Acyclic, 1);
-                first_primitive = false;
-                m_pos += 2;
-                continue;
-              } else if (!std::isdigit(m_str[m_pos + 1])) {
-                processImplicitAnd(parsedOp, first_primitive);
-                m_callback.atomPrimitive(AE_Cyclic, 1);
-                first_primitive = false;
-                ++m_pos;
-                continue;
+              switch (m_str[m_pos + 1]) {
+                case 'b':
+                case 'u':
+                case 'h':
+                case 'e':
+                case 'n':
+                case 'a':
+                case 'f':
+                case 'g':
+                  break;
+                default:
+                  if (m_str[m_pos + 1] == '0') {
+                    processImplicitAnd(parsedOp, first_primitive);
+                    m_callback.atomPrimitive(AE_Acyclic, 1);
+                    first_primitive = false;
+                    m_pos += 2;
+                    continue;
+                  } else if (!std::isdigit(m_str[m_pos + 1])) {
+                    processImplicitAnd(parsedOp, first_primitive);
+                    m_callback.atomPrimitive(AE_Cyclic, 1);
+                    first_primitive = false;
+                    ++m_pos;
+                    continue;
+                  }
+                  break;
               }
               break;
             case 'r':
@@ -2061,7 +2081,17 @@ namespace Smiley {
         ++m_pos;
 
         if (m_mode == SmartsMode) {
+          m_callback.beginAtom();
           parseAtomExpr();
+          m_callback.endAtom();
+
+          if (m_prev != -1)
+            addBond(m_prev, m_index, m_bondOrder, m_isUp, m_isDown);
+
+          m_prev = m_index;
+          ++m_index;
+          m_chiralInfo.push_back(ChiralInfo());
+          
           return;
         }
 
@@ -2218,9 +2248,9 @@ namespace Smiley {
         ++m_pos;
         if (m_mode == SmilesMode)
           return;
-        // implicit OR for bonds
+        // implicit AND for bonds
         if (!firstPrimitive && !parsedOp)
-          m_callback.operation(OP_Or);
+          m_callback.bondOperation(OP_AndHi);
         m_callback.bondPrimitive(type);
         firstPrimitive = false;
         parsedOp = 0;
@@ -2290,7 +2320,7 @@ namespace Smiley {
               if (firstPrimitive)
                 throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
                     "Binary '&' in bond expression without left operand", m_pos, 1);
-              m_callback.operation(OP_AndHi);
+              m_callback.bondOperation(OP_AndHi);
               parsedOp = OP_AndHi;
               ++m_pos;
               break;
@@ -2300,7 +2330,7 @@ namespace Smiley {
               if (firstPrimitive)
                 throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
                     "Binary ';' in bond expression without left operand", m_pos, 1);
-              m_callback.operation(OP_AndLo);
+              m_callback.bondOperation(OP_AndLo);
               parsedOp = OP_AndLo;
               ++m_pos;
               break;
@@ -2310,14 +2340,14 @@ namespace Smiley {
               if (firstPrimitive)
                 throw Exception(Exception::SyntaxError, BinaryOpWithoutLeftOperand,
                     "Binary ',' in bond expression without left operand", m_pos, 1);
-              m_callback.operation(OP_Or);
+              m_callback.bondOperation(OP_Or);
               parsedOp = OP_Or;
               ++m_pos;
               break;
             case '!':
               if (m_mode == SmilesMode)
                 break;
-              m_callback.operation(OP_Not);
+              m_callback.bondOperation(OP_Not);
               parsedOp = OP_Not;
               ++m_pos;
               break;
@@ -2372,6 +2402,7 @@ namespace Smiley {
         }
         if (ringBond != m_ringBonds.end()) {
           // this is the second ringbond of a pair, make the bond
+          m_callback.endRingBond(rnum);
           if (ringBond->second[j].isExplicit) {
             // check if the bond types match
             if (m_explicitBond && m_exceptions & ConflictingRingBonds) {
@@ -2382,16 +2413,23 @@ namespace Smiley {
                     "Conflicing ring bonds", pos, 1);
             }
             addBond(ringBond->first, m_prev, ringBond->second[j].order, ringBond->second[j].isUp, ringBond->second[j].isDown, rnum);
-          } else
+          } else {
+            std::cout << "adding ring bond..." << std::endl;
+            for (std::size_t i = 0; i < m_aromaticAtoms.size(); ++i)
+              std::cout << m_aromaticAtoms[i] << " ";
+            std::cout << std::endl;
             addBond(ringBond->first, m_prev, m_bondOrder, m_isUp, m_isDown, rnum);
+          }
           // remove the ringbond from the list so it can be reused
           ringBond->second.erase(ringBond->second.begin() + j);
           if (ringBond->second.empty())
             m_ringBonds.erase(ringBond);
         } else {
           // add the ringbond to the list
+          std::cout << m_prev << std::endl;
           m_ringBonds[m_prev].push_back(RingBondInfo(rnum, m_bondOrder, m_isUp, m_isDown, m_explicitBond, pos));
           m_chiralInfo[m_prev].nbrs.push_back(-rnum);
+          m_callback.startRingBond(rnum);
         }
 
         //std::cout << "AFTER processing " << rnum << std::endl; printRingBonds();
