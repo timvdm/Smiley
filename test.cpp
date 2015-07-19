@@ -336,7 +336,7 @@ int main(int argc, char **argv)
   parse("C=1CC1");
   COMPARE(mol.bonds.size(), 3);
   COMPARE(mol.bonds[2].order, 2);
-  
+
   parse("C1CC=1");
   COMPARE(mol.bonds.size(), 3);
   COMPARE(mol.bonds[2].order, 2);
@@ -379,7 +379,7 @@ int main(int argc, char **argv)
   parse("C[C](C)C");
   COMPARE(mol.atoms.size(), 4);
 
-  
+
   //parse("[Cl-].COC(=O)C12[NH2+]CC3(C)C(CCC23C)C1 10020");
   //return 0;
 
@@ -423,7 +423,7 @@ int main(int argc, char **argv)
   ASSERT(chiralInfo != mol.chirality.end());
   COMPARE(chiralInfo->second.first, TH1);
   COMPARE(chiralInfo->second.second.size(), 4);
- 
+
   parse("C[C@TH2](F)(Cl)Br");
   COMPARE(mol.chirality.size(), 1);
   chiralInfo = mol.chirality.find(1);
@@ -444,7 +444,7 @@ int main(int argc, char **argv)
   COMPARE(chiralInfo->second.second[1], 2);
   COMPARE(chiralInfo->second.second[2], 5);
   COMPARE(chiralInfo->second.second[3], 6);
-  
+
   parse("NC(Cl)=[C@]=C(F)Br");
   parse("NC(Cl)=[C@@]=C(F)Br");
 
@@ -559,7 +559,7 @@ int main(int argc, char **argv)
   smarts("*:*", "*:*");
   smarts("*~*", "*~*");
   smarts("*@*", "*@*");
-  smarts("*-=*", "*-,=*");
+  smarts("*-=*", "*-&=*");
   smarts("*-&=*", "*-&=*");
   smarts("*-;=*", "*-;=*");
   smarts("*-,=*", "*-,=*");
@@ -573,8 +573,8 @@ int main(int argc, char **argv)
   smarts("[AR0]", "A&R0");
   smarts("[AR1]", "A&R1");
 
-  
-  
+
+
   parse("n1cccc1");
   parse("[n]1cccc1");
   parse("[nH]1cccc1");
